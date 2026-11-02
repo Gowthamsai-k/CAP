@@ -24,7 +24,14 @@ class Settings(BaseSettings):
     demo_company_id: str = "g-inc-demo"
     max_upload_mb: int = 25
     cors_origins: str = "http://localhost:5173"
-    model_config = SettingsConfigDict(env_file="../.env", extra="ignore")
+    model_config = SettingsConfigDict(env_file=(".env", "../.env"), extra="ignore")
+
+    @property
+    def resolved_database_url(self) -> str:
+        if self.database_url == "sqlite:///../data/compliance.db":
+            db_path = (Path(__file__).resolve().parents[3] / "data" / "compliance.db").resolve()
+            return f"sqlite:///{db_path.as_posix()}"
+        return self.database_url
 
     @property
     def is_production(self) -> bool:

@@ -1,4 +1,5 @@
 import json
+import re
 
 from app.core.config import settings
 from app.schemas import EvidenceRef, ReviewDraft, ReviewFinding, ReviewOut
@@ -66,8 +67,20 @@ def review_g_inc(question: str, top_k: int) -> ReviewOut:
             {"role": "user", "content": f"Question: {question}\n\nLEGAL EVIDENCE (L IDs):\n{legal_json}\n\nFICTIONAL G INC COMPANY EVIDENCE (C IDs):\n{company_json}"},
         ],
     )
-    raw = response.choices[0].message.content or "{}"
-    generated = ReviewDraft.model_validate_json(raw)
+    raw = (response.choices[0].message.content or "{}").strip()
+    if raw.startswith("```"):
+        raw = re.sub(r"^```(?:json)?\s*", "", raw)
+        raw = re.sub(r"\s*```$", "", raw).strip()
+    try:
+        generated = ReviewDraft.model_validate_json(raw)
+    except Exception as parse_err:
+        return ReviewOut(
+            summary=f"Analysis generation returned an unexpected structure: {parse_err}. Raw excerpts are retained below for manual review.",
+            findings=[],
+            legal_evidence=legal_evidence,
+            company_evidence=company_evidence,
+            analysis_generated=False,
+        )
     valid_legal = {row["evidence_id"] for row in legal_rows}
     valid_company = {row["evidence_id"] for row in company_rows}
     findings: list[ReviewFinding] = []

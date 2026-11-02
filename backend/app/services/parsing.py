@@ -1,18 +1,23 @@
 import re
 from pathlib import Path
 
-import fitz
-from docx import Document
-
 
 def extract_text(path: Path) -> str:
     suffix = path.suffix.lower()
     if suffix == ".pdf":
+        import fitz
         with fitz.open(path) as pdf:
             text = "\n".join(page.get_text("text") for page in pdf)
     elif suffix == ".docx":
+        from docx import Document
         doc = Document(path)
-        text = "\n".join(p.text for p in doc.paragraphs if p.text.strip())
+        paragraphs = [p.text for p in doc.paragraphs if p.text.strip()]
+        for table in doc.tables:
+            for row in table.rows:
+                row_text = " | ".join(cell.text.strip() for cell in row.cells if cell.text.strip())
+                if row_text:
+                    paragraphs.append(row_text)
+        text = "\n".join(paragraphs)
     else:
         raise ValueError("Only PDF and DOCX files are supported.")
     if not text.strip():

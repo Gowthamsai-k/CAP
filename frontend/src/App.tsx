@@ -3,6 +3,7 @@ import { Activity, ArrowUpRight, Bell, BookOpen, Bot, ChevronDown, CircleHelp, C
 import CompanyReview from './CompanyReview'
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1'
+const HEALTH_URL = API.replace(/\/api\/v1\/?$/, '') + '/health'
 type Doc = { id:string; title:string; filename:string; jurisdiction:string|null; country:string|null; domain:string|null; authority:string|null; document_type:string|null; source_url:string|null; version:string|null; document_status:string; chunks_count:number; created_at:string }
 type Citation = { document_id:string; document_title:string; section:string|null; source_url:string|null; excerpt:string; score:number }
 type Chat = { question:string; answer:string; citations:Citation[]; sufficient:boolean }
@@ -11,7 +12,7 @@ export default function App() {
   const [page,setPage]=useState('Overview'); const [docs,setDocs]=useState<Doc[]>([]); const [question,setQuestion]=useState(''); const [busy,setBusy]=useState(false); const [chats,setChats]=useState<Chat[]>([]); const [uploadOpen,setUploadOpen]=useState(false); const [error,setError]=useState(''); const [health,setHealth]=useState('Checking services')
   const fileRef=useRef<HTMLInputElement>(null); const bottomRef=useRef<HTMLDivElement>(null)
   const loadDocs=()=>fetch(`${API}/documents`).then(r=>{if(!r.ok)throw Error('Backend unavailable');return r.json()}).then(setDocs).catch(()=>setError('Could not connect to the API. Start the backend and infrastructure using the README instructions.'))
-  useEffect(()=>{loadDocs();fetch('http://localhost:8000/health').then(r=>r.json()).then(h=>setHealth(`Database ${h.database} · Local Qdrant ${h.qdrant}`)).catch(()=>setHealth('Backend offline'))},[])
+  useEffect(()=>{loadDocs();fetch(HEALTH_URL).then(r=>r.json()).then(h=>setHealth(`Database ${h.database} · Local Qdrant ${h.qdrant}`)).catch(()=>setHealth('Backend offline'))},[])
   useEffect(()=>bottomRef.current?.scrollIntoView({behavior:'smooth'}),[chats])
   if(page==='Company Review') return <CompanyReview onBack={()=>setPage('Overview')}/>
   async function ask(q=question){ if(!q.trim())return; setQuestion('');setBusy(true);setError('');try{const r=await fetch(`${API}/query`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:q,top_k:5})});const data=await r.json();if(!r.ok)throw Error(data.detail||'Query failed');setChats(c=>[...c,{question:q,answer:data.answer,citations:data.citations,sufficient:data.evidence_sufficient}])}catch(e){setError(e instanceof Error?e.message:'Request failed')}finally{setBusy(false)} }

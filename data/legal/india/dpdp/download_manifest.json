@@ -1,0 +1,47 @@
+[
+  {
+    "document_id": "dpdp_act_2023",
+    "filename": "dpdp_act_2023.pdf",
+    "title": "Digital Personal Data Protection Act, 2023",
+    "country": "India",
+    "jurisdiction": "IN",
+    "domain": "data_privacy",
+    "source_type": "legal",
+    "authority": "Legislative Department, Ministry of Law and Justice",
+    "document_type": "act",
+    "source_url": "https://www.meity.gov.in/static/uploads/2024/06/2bf1f0e9f04e6fb4f8fef35e82c42aa5.pdf",
+    "version": "Act No. 22 of 2023",
+    "publication_date": "2023-08-11",
+    "document_status": "active_phased"
+  },
+  {
+    "document_id": "it_rules_2011_spdi",
+    "filename": "it_rules_2011_spdi.pdf",
+    "title": "Information Technology (Reasonable Security Practices and SPDI) Rules, 2011",
+    "country": "India",
+    "jurisdiction": "IN",
+    "domain": "data_privacy",
+    "source_type": "legal",
+    "authority": "Department of Information Technology, Ministry of Communications and IT",
+    "document_type": "rules",
+    "source_url": "https://prsindia.org/files/bills_acts/bills_parliament/2011/IT_Rules_2011.pdf",
+    "version": "G.S.R. 313(E)",
+    "publication_date": "2011-04-11",
+    "document_status": "active"
+  },
+  {
+    "document_id": "it_act_2000",
+    "filename": "it_act_2000.pdf",
+    "title": "Information Technology Act, 2000",
+    "country": "India",
+    "jurisdiction": "IN",
+    "domain": "cyber_law_privacy",
+    "source_type": "legal",
+    "authority": "Ministry of Law, Justice and Company Affairs",
+    "document_type": "act",
+    "source_url": "https://www.meity.gov.in/static/uploads/2024/03/ITbill_2000.pdf",
+    "version": "Act No. 21 of 2000",
+    "publication_date": "2000-06-09",
+    "document_status": "active"
+  }
+]
