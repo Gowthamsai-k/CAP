@@ -1,0 +1,16 @@
+"An AI platform that helps multinational companies stay legally compliant across different countries using LLMs and RAG."
+What it does
+🌍 Explains country-specific laws and regulations.
+🤖 Answers compliance questions using official documents.
+📊 Compares regulations between countries.
+📄 Reviews contracts for compliance issues.
+⚠️ Identifies compliance risks before business expansion.
+🔔 Alerts users when important regulations change.
+Who can use it?
+Multinational companies
+Startups expanding internationally
+HR teams
+Finance teams
+Legal teams
+Compliance officers
+The core idea is not to replace lawyers, but to help businesses find and understand compliance information faster and with references to official sources.

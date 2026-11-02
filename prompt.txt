@@ -1,0 +1,1796 @@
+Based on everything we've discussed, your project should be more than a legal chatbot. It should be a multi-agent, continuously updated, cross-jurisdiction compliance intelligence platform that can reason over both government regulations and company-specific documents.
+
+I've consolidated the architecture, technology choices, agent responsibilities, retrieval strategy, database design, update mechanism, research objectives, and implementation requirements below.
+Project: Global Compliance Intelligence Platform
+Global Compliance Intelligence
+AI-powered multi-jurisdiction legal compliance and risk assessment system
+Research-oriented project
+Core objective
+
+Help multinational companies understand, compare, monitor, and assess legal compliance requirements across countries using specialized AI agents, hybrid RAG, legal knowledge management, and evidence-grounded reasoning.
+
+Multi-agent AI
+
+Specialized agents for precision and verification.
+
+Dual knowledge base
+
+External legislation and internal company documents.
+
+Continuous updates
+
+Change detection and incremental indexing.
+
+Compliance intelligence
+
+Risk detection, evidence and citation verification.
+
+
+
+1. Functional scope
+The platform should support these major capabilities:
+Module	Functionality
+Legal Q&A	Answer questions using official legal sources
+Cross-country comparison	Compare regulations across jurisdictions
+Company compliance	Compare company policies against applicable laws
+Contract analysis	Identify potentially problematic or missing clauses
+Risk assessment	Identify and prioritize compliance gaps
+Regulation monitoring	Detect changes to existing regulations
+Knowledge management	Ingest, version, classify and retrieve documents
+Compliance alerts	Notify affected organizations about relevant changes
+Audit reports	Generate evidence-backed compliance reports
+
+2. Technology stack
+These are the technologies I'd standardize on for the initial implementation.
+Layer	Technology
+Frontend	React + Vite + TypeScript
+UI	Material UI or Tailwind CSS
+State/API management	TanStack Query
+Backend	Python + FastAPI
+AI/RAG framework	LlamaIndex
+Agent orchestration	LlamaIndex Workflows
+LLM	Provider-independent abstraction
+Embeddings	BGE / E5
+Reranking	BGE Cross-Encoder
+Vector database	Qdrant
+Relational database	PostgreSQL
+Background queue	Redis
+Background workers	Celery
+Real-time updates	FastAPI WebSockets
+Document processing	PyMuPDF, Docling, python-docx
+Authentication	JWT / secure session-based authentication
+Deployment	Docker + Docker Compose
+
+Important architectural decision: PostgreSQL should be the source of truth for document metadata, organizations, permissions, versions, and compliance records. Qdrant should handle vector similarity retrieval. Do not try to make the vector database responsible for the entire application.
+
+3. High-level architecture
+
+
+
+
+
+
+
+canilguu.medium.com
+
+
+The application has five major subsystems.
+                 REACT FRONTEND
+                       |
+                REST / WEBSOCKET
+                       |
+                 FASTAPI BACKEND
+                       |
+              REQUEST ORCHESTRATOR
+                       |
+        +--------------+--------------+
+        |              |              |
+   Query Agents    RAG Engine     Compliance
+                                  Workflows
+        |              |              |
+        +--------------+--------------+
+                       |
+              EVIDENCE AGGREGATOR
+                       |
+               CITATION VALIDATOR
+                       |
+                 FINAL RESPONSE
+
+
+The background infrastructure operates separately:
+OFFICIAL LEGAL SOURCES
+         |
+   SOURCE MONITOR
+         |
+   CHANGE DETECTOR
+         |
+   DOCUMENT PROCESSOR
+         |
+    SEMANTIC DIFF
+         |
+ INCREMENTAL INDEXER
+         |
+ POSTGRESQL + QDRANT
+         |
+ NOTIFICATION SERVICE
+         |
+ FASTAPI WEBSOCKET
+         |
+    REACT DASHBOARD
+
+
+There should be no requirement to keep a WebSocket connection open to every government website. Use scheduled polling, official APIs, RSS feeds, webhooks where available, and conditional HTTP requests. WebSockets are for notifying your application users.
+4. Knowledge base architecture
+This is one of the most important parts of the project.
+
+You need two logically separate knowledge bases.
+A. External legal knowledge base
+Contains official legal material:
+- Acts and statutes
+- Rules and regulations
+- Government notifications
+- Amendments
+- Regulatory circulars
+- Official guidelines
+- Regulatory FAQs
+- Court judgments, if included in scope
+Suggested initial jurisdiction scope:
+Jurisdiction	Initial focus
+India	DPDP Act, rules and official privacy-related material
+European Union	GDPR, implementing material and EDPB guidance
+Singapore	PDPA and PDPC guidance
+
+Start with your existing Indian documents. Don't attempt to download every law from every country.
+B. Company knowledge base
+Contains organization-specific documents:
+- Employee handbooks
+- HR policies
+- Privacy policies
+- Data retention policies
+- Employment contracts
+- Vendor agreements
+- Data Processing Agreements (DPAs)
+- Standard Operating Procedures (SOPs)
+- Internal security policies
+- Data-processing workflows
+These documents must never be treated as legal authorities.
+C. Keep the two knowledge bases logically separated
+                 KNOWLEDGE SYSTEM
+                       |
+             +---------+---------+
+             |                   |
+        LEGAL KB             COMPANY KB
+             |                   |
+        Government           Organization
+        documents             documents
+             |                   |
+        Qdrant Collection   Qdrant Collection
+             |                   |
+        Legal metadata      Tenant metadata
+             |                   |
+             +---------+---------+
+                       |
+               COMPLIANCE ENGINE
+
+
+You can use two Qdrant collections initially:
+- legal_knowledge
+- company_knowledge
+Company retrieval must enforce organization and tenant permissions at the backend. Never rely on an LLM-generated company ID or a frontend-supplied filter for authorization.
+5. Document ingestion pipeline
+Build a reusable ingestion pipeline that can accept:
+1. PDF uploads.
+2. DOCX uploads.
+3. HTML pages.
+4. Official URLs.
+5. Documents discovered by the source monitoring system.
+The pipeline:
+Document / URL
+      |
+      v
+Source Validation
+      |
+      v
+Document Download
+      |
+      v
+Text Extraction
+      |
+      v
+Legal Structure Extraction
+      |
+      v
+Metadata Extraction
+      |
+      v
+Document Classification
+      |
+      v
+Duplicate Detection
+      |
+      v
+Legal-aware Chunking
+      |
+      v
+Embedding Generation
+      |
+      v
+PostgreSQL + Qdrant
+
+
+Legal-aware chunking
+Do not use arbitrary fixed-length chunks as your only strategy.
+
+Preserve the legal hierarchy:
+Act
+ |
+ +-- Chapter
+       |
+       +-- Section
+              |
+              +-- Subsection
+                     |
+                     +-- Clause
+                            |
+                            +-- Paragraph
+
+
+Each chunk should preserve its parent references.
+
+For example:
+{
+  "chunk_id": "india_dpdp_s8_1",
+  "text": "Extracted legal provision...",
+  "country": "India",
+  "jurisdiction": "IN",
+  "domain": "data_privacy",
+  "regulation": "DPDP Act",
+  "document_type": "act",
+  "chapter": "Chapter II",
+  "section": "Section 8",
+  "subsection": "8(1)",
+  "authority": "Government of India",
+  "source_type": "legal",
+  "source_url": "official-source-url",
+  "document_version": "2023",
+  "effective_from": null,
+  "effective_to": null,
+  "document_status": "verified"
+}
+
+
+The example is a metadata illustration, not a claim about the current effective status of that provision. Extract actual dates and status from authoritative source records.
+Required metadata fields
+Field	Purpose
+document_id	Unique document identifier
+country	Country
+jurisdiction	Jurisdiction code
+domain	Privacy, employment, tax, etc.
+industry	Banking, healthcare, general, etc.
+authority	Publishing authority
+source_type	Legal or company
+document_type	Act, rules, policy, contract, etc.
+title	Document title
+chapter	Chapter identifier
+section	Legal section
+source_url	Original source
+content_hash	Change detection
+version	Document version
+publication_date	Publication date
+effective_from	Effective date
+effective_to	End of applicability
+document_status	Draft, active, repealed, superseded, etc.
+company_id	Tenant identifier for company documents
+
+Use nullable fields when information is unavailable. Never invent effective dates or document versions.
+6. Multi-agent architecture
+This is the central AI component and the main focus of your research.
+
+Do not create agents that merely repeat the same LLM call with different prompts. Each agent needs a clearly defined responsibility, structured input, structured output, and validation rules.
+Agent 1: Query Understanding Agent
+Responsibilities:
+- Understand user intent.
+- Identify the compliance domain.
+- Identify all relevant countries.
+- Identify relevant industries.
+- Determine the requested task.
+- Identify whether company documents are required.
+Example input:
+Can we transfer employee data from Germany to India
+while complying with both countries' privacy laws?
+
+
+Expected output:
+{
+  "intent": "cross_border_compliance",
+  "jurisdictions": ["DE", "IN"],
+  "domains": ["data_privacy"],
+  "industry": "general",
+  "requires_legal_kb": true,
+  "requires_company_kb": false,
+  "requires_comparison": true,
+  "requires_risk_assessment": true
+}
+
+
+Agent 2: Retrieval Planning Agent
+Converts the query understanding into a structured retrieval plan.
+
+Example:
+{
+  "legal_searches": [
+    {
+      "jurisdiction": "DE",
+      "domain": "data_privacy"
+    },
+    {
+      "jurisdiction": "IN",
+      "domain": "data_privacy"
+    }
+  ],
+  "company_search": null,
+  "document_status": ["active"],
+  "search_strategy": "hybrid"
+}
+
+
+Important: use a Pydantic schema with enumerated values and backend validation. The LLM must never execute arbitrary database filters or bypass access controls.
+Agent 3: Jurisdiction Retrieval Agents
+Execute searches independently for each jurisdiction.
+
+For example:
+              Retrieval Planner
+                      |
+           +----------+----------+
+           |                     |
+       India Agent           Germany Agent
+           |                     |
+       India Legal KB       EU Legal KB
+           |                     |
+       Retrieved Sections   Retrieved Sections
+           |                     |
+           +----------+----------+
+                      |
+                Evidence Set
+
+
+Each agent returns:
+- Relevant legal sections.
+- Source document.
+- Section identifiers.
+- Source URL.
+- Effective-date information.
+- Retrieval score.
+- Supporting text.
+Do not assume a separate LLM is necessary for every country. Specialized retrieval workers can use the same retrieval implementation with different jurisdiction filters.
+Agent 4: Company Document Retrieval Agent
+Only activated when the question requires organization-specific information.
+
+Retrieves:
+- Internal policies.
+- Contracts.
+- SOPs.
+- Company-specific procedures.
+Must enforce:
+- Authenticated user.
+- Organization membership.
+- Company ID.
+- Document-level permissions.
+- Tenant isolation.
+Agent 5: Evidence Aggregation Agent
+Combines the results from different retrieval workers.
+
+Responsibilities:
+- Remove duplicates.
+- Group evidence by jurisdiction.
+- Identify missing evidence.
+- Identify contradictory provisions.
+- Preserve source provenance.
+- Rank evidence using relevance and authority.
+Do not simply discard lower-ranked evidence based on a single similarity score.
+Agent 6: Compliance Reasoning Agent
+This is the main reasoning component.
+
+It receives:
+- User question.
+- Legal evidence.
+- Company evidence, if relevant.
+- Jurisdiction context.
+- Document version and effective-date information.
+It determines:
+- Applicable legal obligations.
+- Whether company policies appear to satisfy them.
+- Potential gaps.
+- Exceptions and dependencies.
+- Areas requiring human legal review.
+Every finding must be linked to specific supporting evidence.
+Agent 7: Critic / Adversarial Agent
+This agent independently challenges the proposed result.
+
+It should ask:
+- Is there a missing regulation?
+- Is the evidence from the correct jurisdiction?
+- Is the cited provision applicable on the relevant date?
+- Are there exceptions?
+- Is there contradictory evidence?
+- Is the answer making unsupported assumptions?
+- Has the reasoning confused guidance with binding legislation?
+If a material issue is detected, trigger another retrieval or reasoning cycle.
+
+Set a maximum retry limit to prevent infinite loops.
+Agent 8: Citation Verification Agent
+This agent verifies that:
+- Each factual legal claim has supporting evidence.
+- The cited section exists.
+- The quoted text matches the stored source.
+- The source is authoritative enough for the claim.
+- The cited version is applicable to the requested date.
+- No unsupported legal claims remain.
+Prefer deterministic backend verification for source IDs, section IDs, quotations, and document versions. Use an LLM for semantic support assessment, not as the sole proof of citation validity.
+Agent 9: Risk Assessment Agent
+Classifies potential issues:
+- Critical
+- High
+- Medium
+- Low
+- Unknown / Insufficient evidence
+Each risk should include:
+{
+  "risk_id": "RISK_001",
+  "severity": "high",
+  "description": "Potential data retention compliance gap",
+  "company_evidence": [],
+  "legal_evidence": [],
+  "reason": "Explanation of the identified gap",
+  "recommended_action": "Review and update the retention policy",
+  "requires_human_review": true
+}
+
+
+Risk severity should be based on a transparent, configurable methodology. Do not present an LLM-generated risk score as a statistically validated probability.
+
+7. Dynamic metadata filtering
+This is a particularly important component.
+
+You previously identified that manually writing filters for each question would not scale.
+
+Your implementation should automatically generate retrieval plans from user queries.
+Example A: General legal question
+User:
+
+"Explain the requirements for processing children's personal data in India."
+
+The query agent extracts:
+{
+  "jurisdictions": ["IN"],
+  "domains": ["data_privacy"],
+  "source_types": ["legal"],
+  "document_types": ["act", "rules", "guidance"],
+  "company_id": null,
+  "active_only": true
+}
+
+
+The backend converts this into Qdrant filters.
+Example B: Company compliance question
+User:
+
+"Does our employee privacy policy comply with Indian law?"
+
+Two independent retrieval operations should run:
+
+Legal retrieval
+country = India
+domain = data_privacy
+source_type = legal
+status = applicable
+
+
+Company retrieval
+company_id = authenticated_company_id
+domain = data_privacy
+source_type = company
+
+
+The company ID must come from authenticated backend context, never from the LLM.
+Example C: Cross-country comparison
+User:
+
+"Compare employee data transfer requirements in India, Germany and Singapore."
+
+The orchestrator should launch three jurisdiction-specific retrieval operations in parallel.
+Filter design rules
+- Support multiple jurisdictions.
+- Support multiple domains.
+- Support multiple document types.
+- Support source authority.
+- Support temporal filtering.
+- Support document status.
+- Support industry.
+- Support organization-level access restrictions.
+- Support optional filters when the query is ambiguous.
+Important: Do not over-filter. If a query mentions India and Germany, don't accidentally exclude EU-wide regulations that apply to Germany.
+
+Use query expansion and retrieval fallback when evidence is insufficient.
+
+8. Hybrid RAG retrieval architecture
+Do not rely on vector similarity alone.
+
+Use a hybrid retrieval pipeline.
+              User Query
+                   |
+                   v
+            Query Embedding
+                   |
+          +--------+--------+
+          |                 |
+          v                 v
+      Dense Search       BM25 Search
+       (Qdrant)          (Sparse)
+          |                 |
+          +--------+--------+
+                   |
+                   v
+             Result Fusion
+                   |
+                   v
+           Cross-Encoder Reranker
+                   |
+                   v
+             Top-K Evidence
+                   |
+                   v
+           Evidence Validation
+                   |
+                   v
+            Context Assembly
+                   |
+                   v
+             LLM Reasoning
+
+
+Requirements:
+1. Apply validated metadata filters before retrieval.
+2. Search legal and company collections independently.
+3. Use dense and sparse retrieval.
+4. Combine results using Reciprocal Rank Fusion (RRF) or another evaluated fusion method.
+5. Rerank candidates using a cross-encoder.
+6. Preserve the original source and section identifiers.
+7. Return exact source references with the retrieved evidence.
+8. Detect insufficient evidence rather than forcing an answer.
+Make retrieval parameters configurable:
+RETRIEVAL_CONFIG = {    "dense_top_k": 20,    "sparse_top_k": 20,    "fusion_top_k": 30,    "rerank_top_k": 8,    "similarity_threshold": None}
+
+
+
+These are starting values, not fixed optimal parameters. Tune them through evaluation.
+9. Continuous knowledge-base updates
+This is another major feature of your platform.
+
+The system should not download every document repeatedly.
+
+It should maintain a registry of known sources and periodically check them.
+Update workflow
+              CELERY BEAT
+                  |
+                  v
+           SOURCE MONITOR
+                  |
+                  v
+        Check official source URL
+                  |
+       +----------+----------+
+       |                     |
+   No change              Changed
+       |                     |
+       v                     v
+     Skip              Download version
+                             |
+                             v
+                       Parse document
+                             |
+                             v
+                      Compare content
+                             |
+                             v
+                      Semantic diff
+                             |
+                             v
+                 Identify changed sections
+                             |
+                             v
+                    Incremental indexing
+                             |
+                   +---------+---------+
+                   |                   |
+                   v                   v
+               PostgreSQL           Qdrant
+                   |                   |
+                   +---------+---------+
+                             |
+                             v
+                     Notification event
+                             |
+                             v
+                       WebSocket
+                             |
+                             v
+                       React UI
+
+
+Change detection methods
+Implement in this order:
+1. HTTP ETag.
+2. Last-Modified header.
+3. SHA-256 content hash.
+4. Parsed-text comparison.
+5. Section-level semantic diff.
+Not every government source supports all of these.
+
+When metadata is missing or unreliable, fall back to content comparison.
+Version management
+Never simply overwrite an old legal document.
+
+Maintain:
+- Original source.
+- Original downloaded file.
+- Parsed content.
+- Content hash.
+- Version number.
+- Publication date.
+- Effective date.
+- Retrieval/indexing status.
+- Superseded or repealed status.
+A legal provision may be published on one date but become effective later. Your system must distinguish these dates.
+Incremental indexing
+If only one section changes:
+Old Document
+    |
+    +-- Section 1 (unchanged)
+    +-- Section 2 (changed)
+    +-- Section 3 (unchanged)
+    +-- Section 4 (unchanged)
+
+
+Only reprocess the affected section and its dependent chunks.
+
+Maintain links between old and new versions so historical queries remain reproducible.
+Source discovery
+For your initial implementation, support manually registered official URLs and document uploads.
+
+Later, add an optional discovery workflow when a user asks about an unsupported jurisdiction.
+
+The discovery agent must:
+- Find a candidate source.
+- Verify the publisher and jurisdiction.
+- Identify the document type.
+- Validate the document's relevance.
+- Require approval or apply predefined source-trust rules before indexing.
+Do not let an unrestricted web crawler ingest arbitrary content into the legal knowledge base.
+
+10. Company compliance analysis
+This is where the platform becomes more useful than a conventional legal Q&A chatbot.
+
+The system should compare actual company practices against external legal obligations.
+
+Example:
+
+A company uploads:
+Company Documents
+├── HR_Policy.pdf
+├── Employee_Privacy_Policy.pdf
+├── Data_Retention_Policy.pdf
+├── Employment_Contract.docx
+├── Vendor_DPA.pdf
+└── Security_SOP.pdf
+
+
+A user asks:
+
+"Review our employee data processing practices against applicable Indian privacy requirements."
+
+The system:
+Company Document Retrieval
+             |
+             v
+       Extract Obligations
+             |
+             v
+      Company Practice Map
+             |
+             |
+             v
+      Legal Knowledge Retrieval
+             |
+             v
+      Applicable Obligations
+             |
+             v
+       Requirement Mapping
+             |
+             v
+        Gap Detection
+             |
+             v
+       Critic Verification
+             |
+             v
+        Risk Assessment
+             |
+             v
+        Compliance Report
+
+
+The comparison should use an explicit requirement matrix:
+Requirement	Legal evidence	Company evidence	Result
+Data processing purpose	Legal provision	Privacy policy	To be reviewed
+Data retention	Legal provision	Retention policy	Potential gap
+Security safeguards	Legal provision	Security SOP	Partially addressed
+Consent workflow	Legal provision	Consent procedure	Insufficient evidence
+
+Possible outcomes:
+- Compliant based on available evidence.
+- Potentially non-compliant.
+- Partially addressed.
+- Missing documentation.
+- Not applicable.
+- Insufficient evidence.
+Do not automatically classify missing documentation as a confirmed legal violation.
+11. Contract analysis
+Allow users to upload contracts and analyze them against the relevant jurisdictions.
+
+Supported initial document types:
+- Employment contracts.
+- Vendor agreements.
+- Data Processing Agreements.
+- Non-Disclosure Agreements.
+- Service agreements.
+Pipeline:
+Contract Upload
+      |
+      v
+Clause Extraction
+      |
+      v
+Clause Classification
+      |
+      v
+Identify Jurisdictions
+      |
+      v
+Retrieve Applicable Law
+      |
+      v
+Clause-to-Obligation Mapping
+      |
+      v
+Identify Potential Issues
+      |
+      v
+Citation Verification
+      |
+      v
+Contract Review Report
+
+
+The output should contain:
+- Clause identifier.
+- Original clause text.
+- Relevant legal provision.
+- Potential concern.
+- Risk severity.
+- Explanation.
+- Suggested revision.
+- Citation.
+- Human review requirement.
+Never automatically modify or execute a contract.
+
+12. Database architecture
+Use PostgreSQL for relational data and Qdrant for vector retrieval.
+PostgreSQL tables
+Table	Purpose
+users	User accounts
+organizations	Company accounts
+organization_members	User-company relationships
+jurisdictions	Supported countries and regions
+legal_sources	Registered official source URLs
+legal_documents	Legal document registry
+legal_document_versions	Version history
+legal_sections	Structured legal provisions
+company_documents	Uploaded company documents
+company_document_versions	Internal document versions
+compliance_reviews	Review records
+compliance_findings	Identified issues
+citations	Evidence references
+regulatory_changes	Detected changes
+alerts	User notifications
+monitored_jurisdictions	Organization monitoring preferences
+audit_logs	Sensitive activity records
+
+Qdrant collections
+Collection 1: legal_knowledge
+
+Stores embeddings of legal sections and official guidance.
+
+Collection 2: company_knowledge
+
+Stores company-specific document chunks.
+
+Use payload indexes for frequently filtered fields:
+country
+jurisdiction
+domain
+industry
+source_type
+document_type
+authority
+document_id
+document_version
+document_status
+effective_from
+effective_to
+company_id
+
+
+The company collection must enforce tenant isolation in every retrieval path.
+13. FastAPI backend API
+Organize your endpoints by domain.
+Endpoint	Purpose
+POST /api/v1/query	Ask legal/compliance questions
+POST /api/v1/documents/upload	Upload company documents
+POST /api/v1/sources	Register official legal sources
+GET /api/v1/documents	List accessible documents
+GET /api/v1/documents/{id}	Document details and versions
+POST /api/v1/documents/{id}/reindex	Re-index a document
+GET /api/v1/jurisdictions	List supported jurisdictions
+GET /api/v1/regulations	Browse indexed regulations
+POST /api/v1/compliance/review	Start compliance analysis
+POST /api/v1/contracts/review	Analyze a contract
+GET /api/v1/compliance/findings	List compliance findings
+GET /api/v1/alerts	Retrieve notifications
+GET /api/v1/monitoring/status	Monitoring status
+WS /ws/notifications	Real-time notifications
+
+For long-running jobs, return a job ID and expose a job-status endpoint rather than keeping an HTTP request open.
+WebSocket events
+Examples:
+{
+  "event": "agent_progress",
+  "stage": "legal_retrieval",
+  "message": "Retrieving Indian privacy regulations"
+}
+
+
+{
+  "event": "regulation_updated",
+  "jurisdiction": "IN",
+  "document": "Regulation name",
+  "change_id": "CHANGE_001"
+}
+
+
+{
+  "event": "compliance_review_completed",
+  "review_id": "REVIEW_001",
+  "status": "completed"
+}
+
+
+WebSocket notifications should be authorized and restricted to the relevant organization.
+
+14. React frontend
+The UI should feel like an enterprise compliance management product rather than a basic chatbot.
+
+Recommended pages:
+Page	Features
+Dashboard	Overall compliance overview, risks, alerts
+AI Compliance Assistant	Conversational legal Q&A
+Jurisdiction Explorer	Browse countries and regulations
+Regulation Comparison	Side-by-side country comparison
+Document Center	Legal and company document management
+Contract Analyzer	Contract upload and review
+Compliance Reviews	Gap analysis and findings
+Regulatory Monitor	Changes and update history
+Alerts	Regulatory notifications
+Organization Settings	Company profile, members, permissions
+
+AI assistant interface
+Display more than just the final answer.
+
+Show the workflow:
+Query received                 ✓
+Intent identified              ✓
+Jurisdictions identified       ✓
+Legal retrieval                ✓
+Company retrieval              ✓
+Evidence aggregation           ✓
+Compliance reasoning           ✓
+Citation verification          ✓
+
+Final answer                   ✓
+
+
+Also show:
+- Country and domain.
+- Applicable regulation.
+- Legal section.
+- Source URL.
+- Publication/effective dates.
+- Supporting excerpts.
+- Confidence or evidence sufficiency.
+- Contradictory evidence.
+- Human review warnings.
+Do not expose private internal reasoning or hidden chain-of-thought. Show concise explanations, evidence, agent status, and validation results instead.
+
+15. Security and reliability
+This is essential because companies will upload sensitive internal documents.
+
+Implement:
+1. Authentication and authorization.
+2. Organization-level tenant isolation.
+3. Role-based access control.
+4. Secure document storage.
+5. Encryption in transit and at rest.
+6. Audit logs.
+7. File type and size validation.
+8. Malware scanning where appropriate.
+9. Rate limiting.
+10. Secure secrets management.
+11. Protection against prompt injection inside uploaded documents.
+12. Strict separation of retrieved content from system instructions.
+Treat legal documents and company uploads as untrusted input. A document must never be allowed to instruct the agents to bypass their policies or reveal other organizations' data.
+
+All company retrieval must enforce authorization before vector search and again when resolving source documents.
+16. Evaluation and research contribution
+This is particularly important: your research must establish whether your multi-agent system actually performs better.
+
+Build three experimental configurations.
+Experiment A — Baseline RAG
+Query → Vector Retrieval → LLM → Answer
+
+
+
+Experiment B — Advanced RAG
+Query → Metadata Filters → Hybrid Search
+      → Reranker → LLM → Answer
+
+
+
+Experiment C — Proposed Multi-Agent RAG
+Query → Intent Agent → Retrieval Planner
+      → Parallel Jurisdiction Retrieval
+      → Evidence Aggregation
+      → Compliance Reasoning
+      → Critic → Citation Verification
+      → Answer
+
+
+
+Evaluation metrics
+Metric	What it measures
+Precision@K	Relevance of retrieved evidence
+Recall@K	Coverage of relevant evidence
+MRR	Position of first relevant result
+nDCG	Quality of evidence ranking
+Citation accuracy	Whether citations support the claims
+Citation completeness	Whether claims requiring citations have them
+Answer faithfulness	Whether answers stay grounded in evidence
+Answer accuracy	Correctness against expert-reviewed answers
+Hallucination rate	Unsupported factual or legal claims
+Latency	End-to-end processing time
+Update latency	Time from source change to indexed availability
+Incremental indexing cost	Work required for a change versus full re-indexing
+
+Experimental dataset
+Create a manually validated test dataset with:
+- Direct legal questions.
+- Multi-section questions.
+- Cross-country comparison questions.
+- Company policy compliance questions.
+- Contract analysis questions.
+- Ambiguous questions.
+- Outdated-law questions.
+- Contradictory-evidence questions.
+- Insufficient-evidence questions.
+For every test case, store the expected jurisdictions, relevant legal sections, applicable versions, and expected answer characteristics.
+
+Use human-reviewed ground truth, ideally with legal-domain expert input.
+Research hypothesis
+Your central research question should be:
+Does a precision-oriented multi-agent RAG architecture improve legal evidence retrieval, citation correctness, and compliance assessment accuracy compared with conventional and advanced single-agent RAG systems?
+
+You should also measure the cost of the additional agents in latency and model usage. An architecture that improves precision slightly but multiplies inference cost substantially needs that trade-off reported.
+
+17. Implementation roadmap
+Build this incrementally. Codex should not attempt to implement the entire platform in one pass.
+Phase	Deliverable
+1	Project setup, PostgreSQL, Qdrant, Redis
+2	Legal document registry and ingestion
+3	Legal-aware parsing, chunking and metadata
+4	Baseline LlamaIndex RAG
+5	Hybrid retrieval and reranking
+6	Dynamic retrieval planning and multi-agent workflows
+7	Critic and citation verification
+8	Company document ingestion and compliance gap analysis
+9	Contract review
+10	Regulation monitoring and incremental indexing
+11	React dashboard and WebSocket notifications
+12	Evaluation, optimization and deployment
+
+Your first milestone: A working Indian legal Q&A system that retrieves the correct legal sections and produces answers with verifiable citations.
+
+Don't start by implementing all nine agents. First make ingestion and baseline retrieval reliable.
+
+18. Complete Codex implementation prompt
+I've prepared the following as a standalone specification you can give directly to Codex.
+Project Specification: Global Compliance Intelligence Platform
+1. Project Overview
+Build an enterprise-oriented AI-powered Global Compliance Intelligence Platform.
+
+The platform helps multinational companies, startups, HR teams, finance teams, legal teams, and compliance officers understand and manage legal compliance requirements across multiple countries.
+
+The platform uses:
+- Large Language Models (LLMs)
+- Retrieval-Augmented Generation (RAG)
+- Multiple specialized AI agents
+- Hybrid retrieval
+- Legal knowledge graphs (future extension)
+- Continuous regulatory monitoring
+- Incremental document indexing
+- Company-specific compliance analysis
+The objective is NOT to replace lawyers. It is to accelerate legal research, regulatory understanding, compliance gap detection, and risk identification using traceable official evidence.
+2. Main Objectives
+Implement the following capabilities:
+1. Country-specific legal question answering.
+2. Cross-jurisdiction regulatory comparison.
+3. Company-specific compliance gap detection.
+4. Contract compliance analysis.
+5. Compliance risk assessment.
+6. Automated regulatory change detection.
+7. Incremental knowledge-base updates.
+8. Evidence-backed answers with exact citations.
+9. Organization-specific document management.
+10. Real-time compliance notifications.
+3. Technology Stack
+Frontend
+- React
+- Vite
+- TypeScript
+- Material UI or Tailwind CSS
+- React Router
+- TanStack Query
+- Axios
+- WebSocket client
+Backend
+- Python
+- FastAPI
+- Pydantic
+- SQLAlchemy
+- Alembic
+AI and RAG
+- LlamaIndex
+- LlamaIndex Workflows for agent orchestration
+- Provider-independent LLM interface
+- BGE or E5 embeddings
+- Cross-encoder reranker
+- Hybrid dense and sparse retrieval
+Databases
+- PostgreSQL: relational data and metadata
+- Qdrant: vector storage and retrieval
+- Redis: caching, queues and background processing
+Background processing
+- Celery
+- Celery Beat
+- Redis
+Document processing
+- PyMuPDF
+- Docling
+- python-docx
+- BeautifulSoup
+- Appropriate OCR integration for scanned documents
+Deployment
+- Docker
+- Docker Compose
+Keep all external AI providers configurable. Do not hardcode API keys, model names, embedding dimensions, or provider-specific implementations.
+4. Jurisdiction Scope
+Initial supported jurisdictions:
+1. India
+2. European Union
+3. Singapore
+Initially prioritize:
+- Data Privacy
+- Employment Law
+The system must be designed to support additional countries and domains without architectural changes.
+
+Do not download or crawl every legal document automatically.
+
+Support:
+- Existing local legal document uploads.
+- Official URL registration.
+- On-demand document ingestion.
+- Controlled source discovery.
+- Scheduled regulatory monitoring.
+Start with the Indian legal documents supplied by the project owner.
+5. Dual Knowledge Base
+Create two logically isolated knowledge bases.
+Legal Knowledge Base
+Contains:
+- Acts
+- Statutes
+- Rules
+- Regulations
+- Amendments
+- Government notifications
+- Official circulars
+- Regulator guidelines
+- Official FAQs
+- Court judgments, when included in scope
+Qdrant collection: legal_knowledge
+Company Knowledge Base
+Contains:
+- HR policies
+- Employment contracts
+- Employee handbooks
+- Privacy policies
+- Data retention policies
+- Data Processing Agreements
+- Vendor agreements
+- Security policies
+- SOPs
+- Internal compliance documentation
+Qdrant collection: company_knowledge
+
+Company documents must never be treated as legal authorities.
+
+Enforce tenant isolation using authenticated organization context. Never trust an LLM-generated company ID or an unvalidated client-supplied tenant filter.
+6. Document Ingestion
+Create a modular ingestion pipeline:
+
+Document Input
+→ Source Validation
+→ Download or Upload
+→ Text Extraction
+→ OCR if necessary
+→ Structural Parsing
+→ Metadata Extraction
+→ Document Classification
+→ Duplicate Detection
+→ Legal-aware Chunking
+→ Embedding
+→ PostgreSQL Registration
+→ Qdrant Indexing
+
+Preserve legal hierarchy:
+
+Act → Chapter → Section → Subsection → Clause → Paragraph.
+
+Do not blindly split legal documents into fixed-size chunks.
+
+Implement configurable chunking that preserves section boundaries and parent-child relationships.
+
+Every indexed chunk must contain provenance metadata.
+
+Required metadata:
+- document_id
+- chunk_id
+- country
+- jurisdiction
+- domain
+- industry
+- authority
+- source_type
+- document_type
+- document_title
+- chapter
+- section
+- subsection
+- source_url
+- content_hash
+- version
+- publication_date
+- effective_from
+- effective_to
+- document_status
+- company_id where applicable
+Unknown values must remain null or explicitly unknown. Never fabricate legal metadata.
+
+Maintain original documents and parsed text.
+7. Retrieval Engine
+Implement hybrid retrieval using:
+1. Dense vector search.
+2. BM25 or sparse retrieval.
+3. Result fusion using RRF or another evaluated method.
+4. Cross-encoder reranking.
+5. Evidence sufficiency checking.
+Use Qdrant metadata filtering.
+
+Search legal and company collections independently.
+
+Preserve exact document IDs, section identifiers, version IDs, and source URLs.
+
+All retrieval parameters must be configurable.
+
+Implement retrieval fallback when:
+- The metadata filter is too restrictive.
+- A required jurisdiction has no indexed material.
+- Retrieved evidence is insufficient.
+- Conflicting provisions are found.
+Never silently broaden a search without recording that the retrieval plan changed.
+8. Multi-Agent Architecture
+Implement the agents as specialized, independently testable workflow components.
+Agent 1: Query Understanding Agent
+Extract:
+- User intent
+- Jurisdictions
+- Legal domains
+- Industry
+- Query type
+- Whether company documents are required
+- Whether comparison or risk assessment is required
+Return validated structured JSON.
+Agent 2: Retrieval Planning Agent
+Convert query analysis into a validated retrieval plan.
+
+Identify:
+- Required jurisdictions
+- Relevant domains
+- Document types
+- Source types
+- Temporal requirements
+- Company retrieval requirements
+- Search strategy
+Never allow arbitrary LLM-generated database queries.
+Agent 3: Jurisdiction Retrieval Agents
+Execute independent retrieval operations for each relevant jurisdiction.
+
+Support parallel retrieval.
+
+Do not assume every jurisdiction needs a separate LLM. Reuse common retrieval components.
+Agent 4: Company Retrieval Agent
+Retrieve company-specific documents.
+
+Enforce authenticated organization access, document permissions and tenant isolation.
+Agent 5: Evidence Aggregation Agent
+Combine retrieval results.
+
+Perform:
+- Deduplication
+- Evidence grouping
+- Source ranking
+- Contradiction identification
+- Provenance preservation
+- Missing evidence detection
+Agent 6: Compliance Reasoning Agent
+Analyze applicable legal requirements against the retrieved evidence.
+
+Produce:
+- Applicable obligations
+- Legal explanations
+- Potential compliance gaps
+- Exceptions and dependencies
+- Recommendations
+- Supporting citations
+Agent 7: Critic Agent
+Independently challenge the proposed answer.
+
+Check:
+- Missing regulations
+- Missing exceptions
+- Incorrect jurisdictions
+- Outdated provisions
+- Contradictory evidence
+- Unsupported conclusions
+Trigger bounded retrieval or reasoning retries when necessary.
+Agent 8: Citation Verification Agent
+Verify:
+- Source existence
+- Section existence
+- Exact quotation matching
+- Version applicability
+- Citation-to-claim support
+- Source authority
+Use deterministic checks wherever possible.
+Agent 9: Risk Assessment Agent
+Classify findings as:
+- Critical
+- High
+- Medium
+- Low
+- Unknown / Insufficient Evidence
+Return severity, supporting evidence, explanation, recommended action, and human review requirements.
+
+Do not claim that LLM-generated risk scores are statistically calibrated probabilities.
+9. Dynamic Metadata Filtering
+Create a controlled Pydantic RetrievalPlan schema.
+
+Support filters for:
+- Jurisdiction
+- Country
+- Domain
+- Industry
+- Source type
+- Document type
+- Authority
+- Document status
+- Effective date
+- Company ID
+The query understanding and planning agents generate the retrieval plan.
+
+Backend code validates it and converts it into Qdrant filters.
+
+For company retrieval, company ID must come from authenticated server-side context.
+
+Example:
+
+Question: "Does our employee privacy policy comply with Indian law?"
+
+Execute two parallel searches:
+
+LEGAL:
+country = India
+domain = data_privacy
+source_type = legal
+status = applicable
+
+COMPANY:
+company_id = authenticated_company_id
+domain = data_privacy
+source_type = company
+
+Do not apply overly restrictive filters that exclude applicable EU-wide or cross-border legislation.
+10. Continuous Regulatory Monitoring
+Create a source registry and monitoring service.
+
+Use:
+- Official APIs when available
+- RSS feeds when available
+- Scheduled polling
+- ETag
+- Last-Modified
+- SHA-256 hashes
+- Parsed-text comparisons
+Monitoring workflow:
+
+Registered Source
+→ Scheduled Check
+→ Change Detection
+→ Download New Version
+→ Parse
+→ Compare Old and New Versions
+→ Identify Changed Sections
+→ Semantic Difference Analysis
+→ Incremental Embedding
+→ Update PostgreSQL and Qdrant
+→ Create Regulatory Change Record
+→ Notify Affected Organizations
+
+Do not repeatedly download unchanged documents.
+
+Do not overwrite historical legal versions.
+
+Preserve publication dates, effective dates, repeal dates, and superseded versions separately.
+
+Re-index only affected chunks where possible.
+
+Implement retry handling, failure logging, and idempotent indexing.
+
+Use Celery Beat for scheduling and Celery workers for background execution.
+11. Company Compliance Analysis
+Allow authenticated organizations to upload internal policies and contracts.
+
+Compare internal company evidence with external legal obligations.
+
+Produce findings with:
+- Requirement
+- Applicable legal provision
+- Company document
+- Relevant company section
+- Compliance status
+- Explanation
+- Severity
+- Recommended action
+- Citation
+- Human review requirement
+Supported outcomes:
+- Compliant based on available evidence
+- Potentially non-compliant
+- Partially addressed
+- Missing documentation
+- Not applicable
+- Insufficient evidence
+Never automatically equate missing evidence with a confirmed legal violation.
+12. Contract Review
+Support PDF and DOCX contracts.
+
+Implement:
+
+Contract Upload
+→ Clause Extraction
+→ Clause Classification
+→ Jurisdiction Identification
+→ Legal Retrieval
+→ Clause-to-Obligation Mapping
+→ Issue Detection
+→ Citation Verification
+→ Risk Assessment
+→ Review Report
+
+The output should include:
+- Original clause
+- Clause identifier
+- Relevant legal requirement
+- Potential issue
+- Explanation
+- Risk level
+- Suggested revision
+- Source citation
+- Human review requirement
+Do not automatically execute or modify uploaded contracts.
+13. Database Design
+Use PostgreSQL with SQLAlchemy and Alembic.
+
+Create tables:
+- users
+- organizations
+- organization_members
+- jurisdictions
+- legal_sources
+- legal_documents
+- legal_document_versions
+- legal_sections
+- company_documents
+- company_document_versions
+- compliance_reviews
+- compliance_findings
+- citations
+- regulatory_changes
+- alerts
+- monitored_jurisdictions
+- audit_logs
+Use UUID identifiers where appropriate.
+
+Create indexes for frequently queried metadata.
+
+Use Qdrant collections:
+- legal_knowledge
+- company_knowledge
+Configure payload indexes for frequently filtered fields.
+14. FastAPI API Design
+Create versioned APIs.
+
+POST /api/v1/query
+POST /api/v1/documents/upload
+POST /api/v1/sources
+POST /api/v1/compliance/review
+POST /api/v1/contracts/review
+POST /api/v1/documents/{id}/reindex
+
+GET /api/v1/documents
+GET /api/v1/documents/{id}
+GET /api/v1/regulations
+GET /api/v1/jurisdictions
+GET /api/v1/compliance/findings
+GET /api/v1/alerts
+GET /api/v1/monitoring/status
+GET /api/v1/jobs/{job_id}
+
+WS /ws/notifications
+
+Use asynchronous job execution for long-running ingestion and compliance workflows.
+15. React Frontend
+Build an enterprise-oriented responsive dashboard.
+
+Pages:
+1. Dashboard
+2. AI Compliance Assistant
+3. Jurisdiction Explorer
+4. Regulation Comparison
+5. Document Center
+6. Contract Analyzer
+7. Compliance Reviews
+8. Regulatory Monitoring
+9. Alerts and Notifications
+10. Organization Settings
+The AI assistant should show:
+- User question
+- Jurisdictions identified
+- Retrieval status
+- Agent progress
+- Final answer
+- Legal citations
+- Supporting excerpts
+- Document versions
+- Evidence sufficiency
+- Contradictions
+- Human review warnings
+Use WebSockets for agent progress and regulatory notifications.
+
+Display concise agent activity and evidence explanations, not private internal chain-of-thought.
+16. Security
+Implement:
+- Authentication
+- Role-based authorization
+- Organization isolation
+- Secure document access
+- Encrypted transport
+- Secure secrets management
+- File validation
+- Rate limiting
+- Audit logging
+- Prompt injection protection
+- Tenant-aware vector retrieval
+Never expose one organization's documents to another organization.
+
+Treat uploaded documents and external sources as untrusted content.
+17. Research Evaluation
+Create three separately configurable systems.
+
+A. Baseline RAG:
+Query → Vector Search → LLM.
+
+B. Advanced RAG:
+Query → Metadata Filtering → Hybrid Search → Reranking → LLM.
+
+C. Proposed Multi-Agent RAG:
+Query Understanding → Retrieval Planning → Parallel Retrieval → Evidence Aggregation → Reasoning → Critic → Citation Verification.
+
+Evaluate using:
+- Precision@K
+- Recall@K
+- MRR
+- nDCG
+- Citation Accuracy
+- Citation Completeness
+- Answer Faithfulness
+- Answer Accuracy
+- Hallucination Rate
+- Latency
+- Token Consumption
+- Update Latency
+- Incremental Indexing Cost
+Build a human-validated evaluation dataset.
+
+Compare all three systems on the same questions, documents, models, and retrieval conditions wherever possible.
+
+Store experiment configurations and results.
+
+Do not hardcode or fabricate evaluation metrics.
+18. Engineering Requirements
+Use a modular architecture with clear separation of concerns.
+
+Requirements:
+- Typed Python code.
+- Pydantic request and response schemas.
+- Dependency injection.
+- Structured logging.
+- Centralized exception handling.
+- Environment-based configuration.
+- Database migrations.
+- Unit tests.
+- Integration tests.
+- API tests.
+- Agent workflow tests.
+- Retrieval evaluation tests.
+- Docker Compose.
+- Health-check endpoints.
+- Idempotent background jobs.
+- Retry and timeout handling.
+Use async operations where appropriate.
+
+Do not put all functionality inside main.py.
+
+Do not create unnecessary microservices for the initial implementation.
+
+Do not introduce multiple agent frameworks unnecessarily. Use LlamaIndex Workflows as the initial orchestration mechanism.
+19. Required Project Structure
+global-compliance-ai/
+├── frontend/
+│   ├── src/
+│   │   ├── components/
+│   │   ├── pages/
+│   │   ├── features/
+│   │   ├── hooks/
+│   │   ├── services/
+│   │   ├── types/
+│   │   └── routes/
+│   └── package.json
+│
+├── backend/
+│   ├── app/
+│   │   ├── main.py
+│   │   ├── api/
+│   │   ├── core/
+│   │   ├── schemas/
+│   │   ├── models/
+│   │   ├── db/
+│   │   ├── rag/
+│   │   │   ├── ingestion/
+│   │   │   ├── parsing/
+│   │   │   ├── chunking/
+│   │   │   ├── embeddings/
+│   │   │   ├── retrieval/
+│   │   │   └── reranking/
+│   │   ├── agents/
+│   │   │   ├── query_understanding/
+│   │   │   ├── retrieval_planning/
+│   │   │   ├── jurisdiction_retrieval/
+│   │   │   ├── company_retrieval/
+│   │   │   ├── evidence_aggregation/
+│   │   │   ├── compliance_reasoning/
+│   │   │   ├── critic/
+│   │   │   ├── citation_verification/
+│   │   │   └── risk_assessment/
+│   │   ├── workflows/
+│   │   ├── monitoring/
+│   │   ├── services/
+│   │   ├── notifications/
+│   │   ├── workers/
+│   │   └── evaluation/
+│   ├── tests/
+│   └── requirements.txt
+│
+├── data/
+│   ├── legal/
+│   ├── company/
+│   ├── processed/
+│   └── evaluation/
+│
+├── scripts/
+├── docker-compose.yml
+├── .env.example
+└── README.md
+
+Adapt this structure if the existing repository already has a sensible architecture.
+20. Implementation Instructions for Codex
+IMPORTANT: Do not attempt to implement the complete application in one enormous code generation step.
+
+First inspect the existing repository.
+
+Then:
+1. Identify existing code, dependencies, project structure, and available documents.
+2. Create an implementation plan.
+3. Identify missing infrastructure and configuration.
+4. Implement the application in independent, testable phases.
+5. Create database migrations.
+6. Add tests for each subsystem.
+7. Verify each phase before moving forward.
+8. Maintain documentation and update the README.
+Initial implementation milestone
+Implement ONLY:
+- React + Vite + TypeScript setup.
+- FastAPI backend.
+- PostgreSQL connection.
+- Qdrant connection.
+- Redis connection.
+- Legal document registry.
+- PDF and DOCX ingestion.
+- Legal-aware parsing and chunking.
+- Metadata extraction.
+- Embedding generation.
+- Legal Q&A baseline RAG.
+- Source-grounded citations.
+- Basic document management UI.
+Use the existing Indian legal documents provided by the project owner.
+
+Do not automatically ingest every file without first classifying and validating it.
+
+Do not build all agents, contract review, automated source discovery, or regulatory monitoring before the baseline RAG pipeline works.
+Second milestone
+Implement:
+- Hybrid retrieval.
+- Metadata filtering.
+- Reranking.
+- Retrieval evaluation.
+- Structured query understanding.
+- Retrieval planning.
+Third milestone
+Implement:
+- Multi-agent orchestration.
+- Jurisdiction-specific retrieval.
+- Company-specific retrieval.
+- Evidence aggregation.
+- Compliance reasoning.
+- Critic agent.
+- Citation verification.
+- Risk assessment.
+Fourth milestone
+Implement:
+- Company document uploads.
+- Compliance gap analysis.
+- Contract review.
+- Regulatory monitoring.
+- Semantic change detection.
+- Incremental indexing.
+- WebSocket notifications.
+Fifth milestone
+Implement:
+- Cross-country comparison.
+- Enterprise dashboard enhancements.
+- Evaluation reports.
+- Performance optimization.
+- Docker deployment.
+- Documentation.
+Final expectations
+For every phase:
+- Generate runnable code.
+- Provide exact installation instructions.
+- Provide environment variables in .env.example.
+- Include dependency versions.
+- Include database migration instructions.
+- Include Docker configuration.
+- Include sample requests and responses.
+- Include tests.
+- Explain how to run the system.
+- Report any unimplemented functionality honestly.
+Never use mock implementations while claiming a feature is complete.
+
+Use mocks only in tests.
+
+Never fabricate legal sources, regulations, citations, or evaluation results.
+
+Always distinguish legal information from legal advice.
+
+The final product must be modular, maintainable, secure, scalable, and suitable for a research evaluation comparing conventional RAG against multi-agent RAG.
+
+
+
+
+
+19. What I recommend you do first
+Don't paste the prompt and ask Codex to generate the entire application immediately. Give it the specification, let it inspect your repository, and ask it to implement the first milestone.
+
+Your first working deliverable should look like this:
+Milestone 1: Indian Legal RAG
+First target
+
+1. Load your existing Indian legal documents.
+2. Extract legal sections and metadata.
+3. Generate embeddings and index them in Qdrant.
+4. Build hybrid retrieval.
+5. Expose a FastAPI question-answering endpoint.
+6. Display answers and exact legal citations in React.
+7. Build a small evaluation dataset and establish baseline metrics.
+
+One important research recommendation: Preserve the baseline implementation separately. When you introduce your multi-agent architecture, you need to compare it against the same corpus and evaluation questions. Otherwise, you won't be able to demonstrate that the agents themselves improved precision.
+
+My suggested research title:
+
+"A Precision-Oriented Multi-Agent Retrieval-Augmented Generation Framework for Continuous Cross-Jurisdictional Legal Compliance Intelligence."
+
+This gives you three connected research contributions:
+1. Multi-agent evidence retrieval and verification.
+2. Company-specific compliance gap detection.
+3. Incremental regulatory knowledge-base maintenance.
+Together, these make a much stronger project than simply building an LLM-powered legal assistant.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Improve accuracy for technical work
+
+Upgrade to Plus and use increased reasoning to debug code, work through systems, and solve math
