@@ -92,7 +92,7 @@ Then open **Company Review**, ask a policy-versus-law question, and review the l
 ## Start the API
 
 ```powershell
-cd E:\Capstone_projects\backend
+cd backend
 python --version
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r .\requirements.txt

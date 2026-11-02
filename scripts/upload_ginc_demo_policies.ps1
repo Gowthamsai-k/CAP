@@ -6,7 +6,7 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $policyDir = Join-Path $repoRoot 'data\company\g-inc'
 $health = Invoke-RestMethod -Uri "$ApiBase/health" -TimeoutSec 5
-if ($health.status -ne 'ok') {
+if ($health.status -notin @('ok', 'degraded')) {
     throw "API health is '$($health.status)'. Start the backend before uploading demo policies."
 }
 

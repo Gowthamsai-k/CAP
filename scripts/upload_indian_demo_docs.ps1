@@ -11,7 +11,7 @@ if (-not (Test-Path -LiteralPath $manifestPath)) {
 }
 
 $health = Invoke-RestMethod -Uri "$ApiBase/health" -TimeoutSec 5
-if ($health.status -ne 'ok') {
+if ($health.status -notin @('ok', 'degraded')) {
     throw "API health is '$($health.status)'. Start the backend and check $ApiBase/health before upload."
 }
 
