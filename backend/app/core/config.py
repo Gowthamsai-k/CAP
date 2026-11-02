@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
     embedding_dimension: int = 384
     retrieval_similarity_threshold: float = 0.25
+    llm_provider: str = "ollama"  # "ollama" or "openai"
+    llm_base_url: str = "http://localhost:11434/v1"
+    llm_model: str = "qwen2.5:3b"
     openai_api_key: str | None = None
     openai_model: str = "gpt-4o-mini"
     upload_dir: str = "data/uploads"
@@ -36,6 +39,24 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         return self.app_env.strip().lower() in {"prod", "production"}
+
+    @property
+    def active_llm_model(self) -> str:
+        if self.llm_provider.lower() == "ollama":
+            return self.llm_model
+        return self.openai_model
+
+    @property
+    def active_llm_base_url(self) -> str | None:
+        if self.llm_provider.lower() == "ollama":
+            return self.llm_base_url
+        return None
+
+    @property
+    def is_llm_available(self) -> bool:
+        if self.llm_provider.lower() == "ollama":
+            return True
+        return bool(self.openai_api_key)
 
     @property
     def upload_path(self) -> Path:

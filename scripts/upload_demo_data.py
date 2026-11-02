@@ -108,9 +108,9 @@ def upload_company_policies():
         print(f"Could not list company documents: {e}", file=sys.stderr)
         return
 
-    policies = sorted(policy_dir.glob("*-DRAFT.md"))
+    policies = sorted(p for p in policy_dir.glob("*.md") if p.name.lower() != "readme.md")
     if not policies:
-        print(f"No G Inc policy drafts found in {policy_dir}")
+        print(f"No company policy markdown files found in {policy_dir}")
         return
 
     for policy in policies:
