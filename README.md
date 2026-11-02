@@ -33,6 +33,26 @@ Upload demo company policies and legal docs (optional):
 ./backend/.venv/bin/python3 scripts/upload_demo_data.py
 ```
 
+## Quick Start (Windows PowerShell - No WSL)
+
+Setup everything with one command in PowerShell:
+```powershell
+.\setup.ps1
+```
+
+Launch both the Backend and Frontend with one command:
+```powershell
+.\start.ps1
+```
+- Web UI: <http://localhost:5173>
+- API Docs: <http://localhost:8000/docs>
+- Health: <http://localhost:8000/health>
+
+Upload demo company policies and legal docs (optional):
+```powershell
+.\backend\.venv\Scripts\python.exe scripts\upload_demo_data.py
+```
+
 ## Local data services
 
 From the repository root, create your environment file:
